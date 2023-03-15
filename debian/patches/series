@@ -18,3 +18,5 @@ debian-local/0015-Some-more-des-test-failures.patch
 1000-doc-tools-py3.patch
 CVE-2020-28196.patch
 CVE-2022-42898.patch
+CVE-2021-37750.patch
+CVE-2021-36222.patch
