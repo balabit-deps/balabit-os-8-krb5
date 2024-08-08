@@ -1,0 +1,27 @@
+Description: Fix a memory leak in krb5_gss_inquire_cred
+Commit 1cd2821 altered the memory
+management of krb5_gss_inquire_cred(), introducing defcred to act as
+an owner pointer when the function must acquire a default credential.
+The commit neglected to update the code to release the default cred
+along the successful path.  The old code does not trigger because
+cred_handle is now reassigned, so the default credential is leaked.
+Author: Ponnuvel Palaniyappan, pponnuvel@gmail.com
+Origin: upstream, https://github.com/krb5/krb5/commit/098f874f3b50dd2c46c0a574677324b5f6f3a1a8
+Bug-Ubuntu: https://bugs.launchpad.net/ubuntu/+source/krb5/+bug/2060666
+---
+This patch header follows DEP-3: http://dep.debian.net/deps/dep3/
+Index: krb5-1.17/src/lib/gssapi/krb5/inq_cred.c
+===================================================================
+--- krb5-1.17.orig/src/lib/gssapi/krb5/inq_cred.c
++++ krb5-1.17/src/lib/gssapi/krb5/inq_cred.c
+@@ -197,9 +197,7 @@ krb5_gss_inquire_cred(minor_status, cred
+         mechs = GSS_C_NO_OID_SET;
+     }
+ 
+-    if (cred_handle == GSS_C_NO_CREDENTIAL)
+-        krb5_gss_release_cred(minor_status, (gss_cred_id_t *)&cred);
+-
++    krb5_gss_release_cred(minor_status, &defcred);
+     krb5_free_context(context);
+     *minor_status = 0;
+     return((lifetime == 0)?GSS_S_CREDENTIALS_EXPIRED:GSS_S_COMPLETE);

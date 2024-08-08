@@ -1,3 +1,9 @@
+krb5 (1.17-6ubuntu4.7) focal; urgency=medium
+
+  * Fix a memory leak in krb5_gss_inquire_cred (LP: #2060666)
+
+ -- Ponnuvel Palaniyappan <pponnuvel@gmail.com>  Thu, 08 Aug 2024 11:06:56 +0100
+
 krb5 (1.17-6ubuntu4.6) focal-security; urgency=medium
 
   * SECURITY UPDATE: Invalid token requests
