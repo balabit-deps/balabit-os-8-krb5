@@ -1,0 +1,34 @@
+From e0084425df784952e76b3bcc8ae9d08300234733 Mon Sep 17 00:00:00 2001
+From: Sumit Bose <sbose@redhat.com>
+Date: Mon, 8 Nov 2021 17:47:17 +0100
+Subject: [PATCH] More python3 fixes for t_daemon.py
+
+[ghudson@mit.edu: use a list comprehension instead of map()]
+---
+ src/lib/krad/t_daemon.py | 6 +++---
+ 1 file changed, 3 insertions(+), 3 deletions(-)
+
+Index: krb5-1.17/src/lib/krad/t_daemon.py
+===================================================================
+--- krb5-1.17.orig/src/lib/krad/t_daemon.py
++++ krb5-1.17/src/lib/krad/t_daemon.py
+@@ -50,7 +50,7 @@ class TestServer(server.Server):
+ 
+         for key in pkt.keys():
+             if key == "User-Password":
+-                passwd = map(pkt.PwDecrypt, pkt[key])
++                passwd = [pkt.PwDecrypt(x) for x in pkt[key]]
+ 
+         reply = self.CreateReplyPacket(pkt)
+         if passwd == ['accept']:
+@@ -61,8 +61,8 @@ class TestServer(server.Server):
+ 
+ srv = TestServer(addresses=["localhost"],
+                  hosts={"127.0.0.1":
+-                        server.RemoteHost("127.0.0.1", "foo", "localhost")},
+-                 dict=dictionary.Dictionary(StringIO.StringIO(DICTIONARY)))
++                        server.RemoteHost("127.0.0.1", b"foo", "localhost")},
++                 dict=dictionary.Dictionary(StringIO(DICTIONARY)))
+ 
+ # Write a sentinel character to let the parent process know we're listening.
+ sys.stdout.write("~")

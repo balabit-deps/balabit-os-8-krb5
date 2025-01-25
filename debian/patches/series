@@ -23,3 +23,6 @@ CVE-2021-36222.patch
 CVE-2023-36054.patch
 CVE-2024-37370.patch
 lp2060666.patch
+0018-Convert-OTP-and-kdcproxy-tests-to-python3.patch
+0019-More-python3-fixes-for-t_daemon.py.patch
+CVE-2024-3596.patch

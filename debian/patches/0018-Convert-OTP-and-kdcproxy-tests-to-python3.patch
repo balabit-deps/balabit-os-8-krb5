@@ -1,0 +1,185 @@
+From 56be947ac4469d9d79b2e451311278f5bcdb2063 Mon Sep 17 00:00:00 2001
+From: Greg Hudson <ghudson@mit.edu>
+Date: Wed, 19 Jun 2019 00:57:30 -0400
+Subject: [PATCH] Convert OTP and kdcproxy tests to Python 3
+
+Commit e23d24beacb73581bbf4351250f3955e6fd44361 did not convert
+t_otp.py or paste-kdcproxy.py.  Convert t_otp.py to Python3.  Rewrite
+paste-kdcproxy.py using wsgiref from the standard Python library to
+avoid the Paste dependency.
+
+ticket: 8818 (new)
+tags: pullup
+target_version: 1.17-next
+---
+ src/tests/t_otp.py           | 24 +++++++++++++-----------
+ src/tests/t_proxy.py         |  6 +-----
+ src/util/paste-kdcproxy.py   | 17 -----------------
+ src/util/wsgiref-kdcproxy.py | 19 +++++++++++++++++++
+ 4 files changed, 33 insertions(+), 33 deletions(-)
+ delete mode 100755 src/util/paste-kdcproxy.py
+ create mode 100755 src/util/wsgiref-kdcproxy.py
+
+Index: krb5-1.17/src/tests/t_otp.py
+===================================================================
+--- krb5-1.17.orig/src/tests/t_otp.py
++++ krb5-1.17/src/tests/t_otp.py
+@@ -30,7 +30,7 @@
+ 
+ from k5test import *
+ from queue import Empty
+-from io import StringIO
++import io
+ import struct
+ 
+ try:
+@@ -52,7 +52,7 @@ ATTRIBUTE    NAS-Identifier  32    strin
+ 
+ class RadiusDaemon(Process):
+     MAX_PACKET_SIZE = 4096
+-    DICTIONARY = dictionary.Dictionary(StringIO.StringIO(radius_attributes))
++    DICTIONARY = dictionary.Dictionary(io.StringIO(radius_attributes))
+ 
+     def listen(self, addr):
+         raise NotImplementedError()
+@@ -62,13 +62,15 @@ class RadiusDaemon(Process):
+ 
+     def run(self):
+         addr = self._args[0]
+-        secr = self._args[1]
++        secrfile = self._args[1]
+         pswd = self._args[2]
+         outq = self._args[3]
+ 
+-        if secr:
+-            with open(secr) as file:
++        if secrfile:
++            with open(secrfile, 'rb') as file:
+                 secr = file.read().strip()
++        else:
++            secr = b''
+ 
+         data = self.listen(addr)
+         outq.put("started")
+@@ -81,7 +83,7 @@ class RadiusDaemon(Process):
+         passwd = []
+         for key in pkt.keys():
+             if key == 'User-Password':
+-                passwd = map(pkt.PwDecrypt, pkt[key])
++                passwd = list(map(pkt.PwDecrypt, pkt[key]))
+             elif key == 'User-Name':
+                 usernm = pkt[key]
+ 
+@@ -126,7 +128,7 @@ class UnixRadiusDaemon(RadiusDaemon):
+         sock.close()
+         os.remove(addr)
+ 
+-        buf = ""
++        buf = b''
+         remain = RadiusDaemon.MAX_PACKET_SIZE
+         while True:
+             buf += conn.recv(remain)
+@@ -226,13 +228,13 @@ realm.run(['./adata', realm.krbtgt_princ
+ #   https://github.com/wichert/pyrad/pull/18
+ try:
+     auth = packet.Packet.CreateAuthenticator()
+-    packet.Packet(authenticator=auth, secret="").ReplyPacket()
++    packet.Packet(authenticator=auth, secret=b'').ReplyPacket()
+ except AssertionError:
+     skip_rest('OTP UNIX domain socket tests', 'pyrad assertion bug detected')
+ 
+ ## Test Unix fail / custom username
+ mark('Unix socket fail / custom username')
+-daemon = UnixRadiusDaemon(args=(socket_file, '', 'accept', queue))
++daemon = UnixRadiusDaemon(args=(socket_file, None, 'accept', queue))
+ daemon.start()
+ queue.get()
+ realm.run([kadminl, 'setstr', realm.user_princ, 'otp',
+@@ -242,7 +244,7 @@ verify(daemon, queue, False, 'custom', '
+ 
+ ## Test Unix success / standard username
+ mark('Unix socket success / standard username')
+-daemon = UnixRadiusDaemon(args=(socket_file, '', 'accept', queue))
++daemon = UnixRadiusDaemon(args=(socket_file, None, 'accept', queue))
+ daemon.start()
+ queue.get()
+ realm.run([kadminl, 'setstr', realm.user_princ, 'otp', otpconfig('unix')])
+@@ -254,7 +256,7 @@ verify(daemon, queue, True, realm.user_p
+ ## accepting.  With the bug, the KDC incorrectly rejects the request
+ ## and then performs invalid memory accesses, most likely crashing.
+ daemon1 = UDPRadiusDaemon(args=(server_addr, secret_file, 'accept1', queue))
+-daemon2 = UnixRadiusDaemon(args=(socket_file, '', 'accept2', queue))
++daemon2 = UnixRadiusDaemon(args=(socket_file, None, 'accept2', queue))
+ daemon1.start()
+ queue.get()
+ daemon2.start()
+Index: krb5-1.17/src/tests/t_proxy.py
+===================================================================
+--- krb5-1.17.orig/src/tests/t_proxy.py
++++ krb5-1.17/src/tests/t_proxy.py
+@@ -4,10 +4,6 @@ from k5test import *
+ if runenv.tls_impl == 'no':
+     skip_rest('HTTP proxy tests', 'TLS build support not enabled')
+ try:
+-    from paste import httpserver
+-except:
+-    skip_rest('HTTP proxy tests', 'Python paste module not found')
+-try:
+     import kdcproxy
+ except:
+     skip_rest('HTTP proxy tests', 'Python kdcproxy module not found')
+@@ -54,7 +50,7 @@ kpasswd_input = (password('user') + '\n'
+ 
+ def start_proxy(realm, keycertpem):
+     proxy_conf_path = os.path.join(realm.testdir, 'kdcproxy.conf')
+-    proxy_exec_path = os.path.join(srctop, 'util', 'paste-kdcproxy.py')
++    proxy_exec_path = os.path.join(srctop, 'util', 'wsgiref-kdcproxy.py')
+     conf = open(proxy_conf_path, 'w')
+     conf.write('[%s]\n' % realm.realm)
+     conf.write('kerberos = kerberos://localhost:%d\n' % realm.portbase)
+Index: krb5-1.17/src/util/paste-kdcproxy.py
+===================================================================
+--- krb5-1.17.orig/src/util/paste-kdcproxy.py
++++ /dev/null
+@@ -1,17 +0,0 @@
+-import kdcproxy
+-from paste import httpserver
+-import os
+-import sys
+-
+-if len(sys.argv) > 1:
+-    port = sys.argv[1]
+-else:
+-    port = 8443
+-if len(sys.argv) > 2:
+-    pem = sys.argv[2]
+-else:
+-    pem = '*'
+-server = httpserver.serve(kdcproxy.Application(), port=port, ssl_pem=pem,
+-                          start_loop=False)
+-os.write(sys.stdout.fileno(), 'proxy server ready\n')
+-server.serve_forever()
+Index: krb5-1.17/src/util/wsgiref-kdcproxy.py
+===================================================================
+--- /dev/null
++++ krb5-1.17/src/util/wsgiref-kdcproxy.py
+@@ -0,0 +1,19 @@
++import kdcproxy
++import os
++import ssl
++import sys
++from wsgiref.simple_server import make_server
++
++if len(sys.argv) > 1:
++    port = int(sys.argv[1])
++else:
++    port = 8443
++if len(sys.argv) > 2:
++    pem = sys.argv[2]
++else:
++    pem = '*'
++
++server = make_server('localhost', port, kdcproxy.Application())
++server.socket = ssl.wrap_socket(server.socket, certfile=pem, server_side=True)
++os.write(sys.stdout.fileno(), b'proxy server ready\n')
++server.serve_forever()
